@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 鬧鐘 V4 - 捷徑同步版</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #fff; overflow: hidden; }
+        #calendar { height: 75vh !important; padding: 10px; }
+        .full-modal { transition: transform 0.3s ease-out; transform: translateY(100%); }
+        .full-modal.active { transform: translateY(0); }
+        .btn-shadow { box-shadow: 0 8px 20px -4px rgba(59, 130, 246, 0.4); }
+    </style>
+</head>
+<body>
+
+    <div class="p-4 max-w-md mx-auto">
+        <header class="flex justify-between items-center mb-2">
+            <h1 class="text-xl font-black">📅 備忘錄 V4</h1>
+            <button onclick="syncToShortcuts()" class="bg-orange-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg active:scale-95">同步本週鬧鐘</button>
+        </header>
+        <div id="calendar"></div>
+    </div>
+
+    <button onclick="toggleList(true)" class="fixed bottom-8 right-6 bg-blue-600 text-white px-6 py-4 rounded-2xl font-bold btn-shadow z-30">📋 清單 (<span id="taskCount">0</span>)</button>
+
+    <div id="listModal" class="full-modal fixed inset-0 bg-gray-50 z-40 flex flex-col">
+        <div class="p-6 flex justify-between items-center bg-white border-b">
+            <h2 class="text-2xl font-black">本週提醒</h2>
+            <button onclick="toggleList(false)" class="text-gray-400 text-xl p-2">✕</button>
+        </div>
+        <div id="taskList" class="flex-1 overflow-y-auto p-6 space-y-4"></div>
+    </div>
+
+    <div id="eventModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
+        <div class="bg-white p-8 rounded-[32px] w-full">
+            <h2 class="text-2xl font-black mb-6">設定提醒</h2>
+            <input type="text" id="eventTitle" placeholder="要做什麼？" class="w-full bg-gray-100 rounded-2xl p-4 mb-4 outline-none text-lg">
+            <input type="time" id="eventTime" class="w-full bg-gray-100 rounded-2xl p-4 mb-8 text-lg">
+            <div class="flex gap-4">
+                <button onclick="closeModal()" class="flex-1 py-4 text-gray-400 font-bold">取消</button>
+                <button onclick="saveEvent()" class="flex-1 bg-blue-600 text-white rounded-2xl font-bold">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let calendar;
+        let selectedDate;
+        let reminders = JSON.parse(localStorage.getItem('reminders_v4') || '[]');
+
+        document.addEventListener('DOMContentLoaded', function() {
+            autoCleanup(); // 啟動即清理過期
+            const calendarEl = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                locale: 'zh-tw',
+                height: '100%',
+                selectable: true,
+                events: reminders,
+                dateClick: function(info) {
+                    selectedDate = info.dateStr;
+                    document.getElementById('eventModal').classList.remove('hidden');
+                }
+            });
+            calendar.render();
+            updateTaskUI();
+        });
+
+        // 1. 自動清理過期項目 (刪除昨天以前的)
+        function autoCleanup() {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0); // 今天的凌晨 00:00
+            const freshReminders = reminders.filter(ev => new Date(ev.start) >= now);
+            if (freshReminders.length !== reminders.length) {
+                reminders = freshReminders;
+                saveToLocal();
+            }
+        }
+
+        // 2. 同步本週鬧鐘到捷徑
+        function syncToShortcuts() {
+            const now = new Date();
+            const endOfWeek = new Date();
+            endOfWeek.setDate(now.getDate() + (7 - now.getDay())); 
+            endOfWeek.setHours(23, 59, 59);
+
+            const thisWeekTasks = reminders.filter(ev => {
+                const taskDate = new Date(ev.start);
+                return taskDate >= now && taskDate <= endOfWeek;
+            });
+
+            if (thisWeekTasks.length === 0) {
+                alert("本週沒有任務需要同步！");
+                return;
+            }
+
+            // 格式: 名稱|時間;名稱|時間
+            const taskData = thisWeekTasks.map(t => {
+                const d = new Date(t.start);
+                const timeStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+                return `${t.title}|${timeStr}`;
+            }).join(';');
+
+            // 跳轉至捷徑 SyncAlarms
+            window.location.href = `shortcuts://run-shortcut?name=SyncAlarms&input=${encodeURIComponent(taskData)}`;
+        }
+
+        function saveEvent() {
+            const title = document.getElementById('eventTitle').value || "提醒";
+            const time = document.getElementById('eventTime').value;
+            if (!time) return alert("請設定時間");
+            reminders.push({ title, start: selectedDate + 'T' + time });
+            saveToLocal();
+            closeModal();
+            document.getElementById('eventTitle').value = '';
+        }
+
+        function deleteEvent(index) {
+            reminders.splice(index, 1);
+            saveToLocal();
+        }
+
+        function saveToLocal() {
+            localStorage.setItem('reminders_v4', JSON.stringify(reminders));
+            if (calendar) {
+                calendar.removeAllEvents();
+                calendar.addEventSource(reminders);
+            }
+            updateTaskUI();
+        }
+
+        function updateTaskUI() {
+            const listEl = document.getElementById('taskList');
+            document.getElementById('taskCount').innerText = reminders.length;
+            listEl.innerHTML = reminders.length === 0 ? '<div class="text-center py-20 text-gray-300">清單空空的</div>' : '';
+            reminders.sort((a,b) => new Date(a.start) - new Date(b.start)).forEach((ev, i) => {
+                const d = new Date(ev.start);
+                listEl.innerHTML += `
+                    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center">
+                        <div>
+                            <div class="font-black text-gray-800">${ev.title}</div>
+                            <div class="text-sm text-blue-500 font-bold">${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2,'0')}</div>
+                        </div>
+                        <button onclick="deleteEvent(${i})" class="bg-red-50 text-red-500 w-12 h-12 rounded-2xl font-bold">✕</button>
+                    </div>`;
+            });
+        }
+
+        function toggleList(show) { document.getElementById('listModal').classList.toggle('active', show); }
+        function closeModal() { document.getElementById('eventModal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
