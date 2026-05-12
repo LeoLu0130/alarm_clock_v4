@@ -3,52 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 鬧鐘 V4.4</title>
+    <title>AI 鬧鐘 V4.5</title>
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background: #f4f4f9; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 15px; border-radius: 15px; shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        #calendar { background: #fff; padding: 10px; border-radius: 10px; border: 1px solid #eee; }
-        .btn { border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-sync { background: #007aff; color: white; }
-        .btn-list { background: #5856d6; color: white; }
+        #calendar { background: #fff; padding: 10px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 10px; }
+        .btn { border: none; padding: 10px 18px; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-sync { background: #ff9500; color: white; } /* 橘色同步 */
+        .btn-list { background: #007aff; color: white; } /* 藍色清單 */
+        .btn-save { background: #34c759; color: white; width: 100%; margin-top: 10px; }
         /* 彈窗樣式 */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
-        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 15px; z-index: 1001; width: 85%; max-width: 350px; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 20px; z-index: 1001; width: 80%; max-width: 300px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-        .todo-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; }
-        .btn-del { background: #ff3b30; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; }
+        .todo-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #eee; }
+        .btn-del { background: #ff3b30; color: white; padding: 6px 12px; border-radius: 8px; font-size: 12px; }
     </style>
 </head>
 <body>
 
 <div class="container" id="mainPage">
     <div class="header">
-        <button class="btn btn-list" onclick="showListPage()">查看清單</button>
-        <button class="btn btn-sync" onclick="syncToShortcuts()">同步鬧鐘</button>
+        <h2 style="margin:0;">📅 備忘錄 V4</h2>
+        <button class="btn btn-sync" onclick="syncToShortcuts()">同步本週鬧鐘</button>
     </div>
     <div id="calendar"></div>
+    <button class="btn btn-list" style="width:100%; margin-top:10px;" onclick="showListPage()">📋 查看/管理清單</button>
 </div>
 
 <div class="container" id="listPage" style="display:none;">
     <div class="header">
-        <button class="btn" onclick="showMainPage()">← 返回日曆</button>
-        <h3>所有待辦事項</h3>
+        <button class="btn" style="background:#eee;" onclick="showMainPage()">← 返回日曆</button>
+        <h3 style="margin:0;">待辦清單</h3>
     </div>
-    <div id="fullTodoList"></div>
+    <div id="fullTodoList" style="margin-top:10px;"></div>
 </div>
 
-<div class="modal-overlay" id="overlay"></div>
+<div class="modal-overlay" id="overlay" onclick="closeModal()"></div>
 <div class="modal" id="modal">
-    <h3 id="mDate">新增</h3>
+    <h3 id="mDate" style="margin:0 0 10px 0; color:#007aff;">新增提醒</h3>
     <input type="text" id="mTitle" placeholder="要做什麼？">
+    <label style="font-size:12px; color:#666;">提醒時間：</label>
     <input type="time" id="mTime" value="09:00">
-    <div style="display:flex; justify-content:flex-end; gap:10px;">
-        <button class="btn" onclick="closeModal()">取消</button>
-        <button class="btn btn-sync" onclick="saveEvent()">儲存</button>
-    </div>
+    <button class="btn btn-save" onclick="saveEvent()">確認儲存</button>
 </div>
 
 <script>
@@ -56,61 +56,74 @@
     let events = JSON.parse(localStorage.getItem('alarms') || '[]');
     let selDate = "";
 
-    window.onload = function() {
+    function initCalendar() {
         const calendarEl = document.getElementById('calendar');
         calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             locale: 'zh-tw',
             height: 'auto',
+            headerToolbar: { left: '', center: 'title', right: 'prev,next' },
             dateClick: function(info) {
                 selDate = info.dateStr;
-                document.getElementById('mDate').innerText = selDate;
+                document.getElementById('mDate').innerText = selDate + " 行程";
                 document.getElementById('modal').style.display = 'block';
                 document.getElementById('overlay').style.display = 'block';
             }
         });
         calendar.addEventSource(events);
         calendar.render();
-    };
+    }
 
     function saveEvent() {
         const title = document.getElementById('mTitle').value || "提醒";
         const time = document.getElementById('mTime').value;
-        const newEv = { id: Date.now().toString(), title: title, start: selDate + "T" + time };
+        const newEv = { id: Date.now().toString(), title: title, start: selDate + "T" + time, allDay: false };
         events.push(newEv);
         localStorage.setItem('alarms', JSON.stringify(events));
         calendar.addEvent(newEv);
         closeModal();
+        document.getElementById('mTitle').value = "";
     }
 
-    function closeModal() { document.getElementById('modal').style.display = 'none'; document.getElementById('overlay').style.display = 'none'; }
-    function showListPage() { 
-        document.getElementById('mainPage').style.display = 'none'; 
+    function closeModal() {
+        document.getElementById('modal').style.display = 'none';
+        document.getElementById('overlay').style.display = 'none';
+    }
+
+    function showListPage() {
+        document.getElementById('mainPage').style.display = 'none';
         document.getElementById('listPage').style.display = 'block';
         renderFullList();
     }
-    function showMainPage() { 
-        document.getElementById('mainPage').style.display = 'block'; 
+
+    function showMainPage() {
+        document.getElementById('mainPage').style.display = 'block';
         document.getElementById('listPage').style.display = 'none';
     }
 
     function renderFullList() {
         const listEl = document.getElementById('fullTodoList');
-        listEl.innerHTML = events.length ? "" : "暫無資料";
+        listEl.innerHTML = events.length ? "" : "<p style='color:#999; text-align:center;'>目前沒有任何行程</p>";
+        // 排序：按時間由近到遠
         events.sort((a,b) => new Date(a.start) - new Date(b.start)).forEach(ev => {
             const d = new Date(ev.start);
+            const dateStr = (d.getMonth()+1) + "/" + d.getDate() + " " + d.getHours().toString().padStart(2,'0') + ":" + d.getMinutes().toString().padStart(2,'0');
             listEl.innerHTML += `
                 <div class="todo-item">
-                    <div><strong>${ev.title}</strong><br><small>${d.toLocaleString()}</small></div>
+                    <div><strong>${ev.title}</strong><br><small style="color:#888;">${dateStr}</small></div>
                     <button class="btn btn-del" onclick="deleteEv('${ev.id}')">刪除</button>
                 </div>`;
         });
     }
 
     function deleteEv(id) {
-        events = events.filter(e => e.id !== id);
-        localStorage.setItem('alarms', JSON.stringify(events));
-        location.reload(); // 簡單處理：刪除後刷新
+        if(confirm("確定要刪除這個行程嗎？")) {
+            events = events.filter(e => e.id !== id);
+            localStorage.setItem('alarms', JSON.stringify(events));
+            renderFullList();
+            // 重新載入日曆上的顯示
+            location.reload(); 
+        }
     }
 
     function syncToShortcuts() {
@@ -121,9 +134,13 @@
             const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
             return `${e.title}|${t}|${days[d.getDay()]}`;
         }).join(';');
-        if(!data) { alert("沒任務"); return; }
+        
+        if(!data) { alert("沒有未來的行程可以同步！"); return; }
+        // 呼叫捷徑
         window.location.href = "shortcuts://run-shortcut?name=SyncAlarms&input=text&text=" + encodeURIComponent(data);
     }
+
+    window.onload = initCalendar;
 </script>
 </body>
 </html>
