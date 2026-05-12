@@ -2,67 +2,113 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 鬧鐘 V4.2 - 自動感應日期版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 鬧鐘 V4.3</title>
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; margin: 0; padding: 20px; background: #f4f4f9; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h2 { color: #333; display: flex; justify-content: space-between; align-items: center; }
-        #calendar { margin-top: 20px; min-height: 500px; }
-        .btn-sync { background: #007aff; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; }
-        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 1000; width: 80%; max-width: 300px; }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { display: flex; justify-content: space-between; align-items: center; font-size: 1.2rem; }
+        #calendar { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 10px; border: 1px solid #eee; }
+        .btn-sync { background: #007aff; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; }
+        .todo-section { margin-top: 20px; border-top: 2px solid #eee; padding-top: 15px; }
+        .todo-item { background: #f9f9f9; padding: 10px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; font-size: 14px; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        .date-display { font-size: 14px; color: #666; margin-bottom: 10px; font-weight: bold; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 12px; z-index: 1000; width: 85%; max-width: 320px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h2>
-        我的行程表
-        <button class="btn-sync" onclick="syncToShortcuts()">同步本週鬧鐘</button>
+        📅 我的行程
+        <button class="btn-sync" onclick="syncToShortcuts()">同步到捷徑</button>
     </h2>
+    
     <div id="calendar"></div>
+
+    <div class="todo-section">
+        <h3>📋 本週待辦項目</h3>
+        <div id="todoList"></div>
+    </div>
 </div>
 
-<div class="modal-overlay" id="overlay"></div>
+<div class="modal-overlay" id="overlay" onclick="closeModal()"></div>
 <div class="modal" id="modal">
-    <h3>新增提醒</h3>
-    <div class="date-display" id="dateDisplay"></div> <input type="text" id="eventTitle" placeholder="要做什麼？">
-    <label style="font-size: 12px; color: #888;">請選擇時間：</label>
-    <input type="time" id="eventTimeOnly"> <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
-        <button onclick="closeModal()">取消</button>
-        <button style="background:#007aff; color:white; border:none; padding:5px 15px; border-radius:5px;" onclick="saveEvent()">儲存</button>
+    <h3 id="modalDateTitle" style="margin-top:0;">新增行程</h3>
+    <input type="text" id="eventTitle" placeholder="要做什麼？">
+    <p style="margin: 0; font-size: 12px; color: #666;">選擇時間：</p>
+    <input type="time" id="eventTime" value="09:00">
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button onclick="closeModal()" style="padding: 8px 15px; border:none; background:#eee; border-radius:5px;">取消</button>
+        <button onclick="saveEvent()" style="padding: 8px 15px; border:none; background:#007aff; color:white; border-radius:5px;">儲4b</button>
     </div>
 </div>
 
 <script>
     let calendar;
     let events = JSON.parse(localStorage.getItem('alarms') || '[]');
-    let selectedDateStr = "";
+    let activeDate = "";
 
-    document.addEventListener('DOMContentLoaded', function() {
+    function initCalendar() {
         const calendarEl = document.getElementById('calendar');
+        if (!calendarEl || typeof FullCalendar === 'undefined') {
+            setTimeout(initCalendar, 500); // 如果還沒載入完畢，半秒後重試
+            return;
+        }
+        
         calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             locale: 'zh-tw',
+            height: 'auto',
+            contentHeight: 350,
+            headerToolbar: { left: 'today', center: 'title', right: 'prev,next' },
             events: events,
             dateClick: function(info) {
-                selectedDateStr = info.dateStr; // 系統自動記住你點的日期
-                openModal(info.dateStr);
+                activeDate = info.dateStr;
+                document.getElementById('modalDateTitle').innerText = info.dateStr + " 行程";
+                document.getElementById('modal').style.display = 'block';
+                document.getElementById('overlay').style.display = 'block';
             }
         });
         calendar.render();
-    });
+        updateTodoList();
+    }
 
-    function openModal(date) {
-        document.getElementById('modal').style.display = 'block';
-        document.getElementById('overlay').style.display = 'block';
-        document.getElementById('dateDisplay').innerText = "已選日期：" + date;
-        document.getElementById('eventTimeOnly').value = "09:00";
+    function saveEvent() {
+        const title = document.getElementById('eventTitle').value || "提醒";
+        const time = document.getElementById('eventTime').value;
+        if (activeDate && time) {
+            const newEv = { title: title, start: activeDate + "T" + time, allDay: false };
+            events.push(newEv);
+            localStorage.setItem('alarms', JSON.stringify(events));
+            calendar.addEvent(newEv);
+            updateTodoList();
+            closeModal();
+            document.getElementById('eventTitle').value = "";
+        }
+    }
+
+    function updateTodoList() {
+        const listEl = document.getElementById('todoList');
+        const now = new Date();
+        const nextWeek = new Date();
+        nextWeek.setDate(now.getDate() + 7);
+
+        const thisWeek = events.filter(e => {
+            const d = new Date(e.start);
+            return d >= now && d <= nextWeek;
+        }).sort((a, b) => new Date(a.start) - new Date(b.start));
+
+        listEl.innerHTML = thisWeek.length ? "" : "<p style='color:#999;'>本週暫無行程</p>";
+        thisWeek.forEach(e => {
+            const d = new Date(e.start);
+            const timeStr = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
+            const dateStr = (d.getMonth()+1) + "/" + d.getDate();
+            listEl.innerHTML += `<div class="todo-item"><span>${dateStr} ${timeStr}</span> <strong>${e.title}</strong></div>`;
+        });
     }
 
     function closeModal() {
@@ -70,46 +116,28 @@
         document.getElementById('overlay').style.display = 'none';
     }
 
-    function saveEvent() {
-        const title = document.getElementById('eventTitle').value || "提醒";
-        const timeOnly = document.getElementById('eventTimeOnly').value;
-        if (selectedDateStr && timeOnly) {
-            const fullDateTime = selectedDateStr + "T" + timeOnly;
-            const newEvent = { title: title, start: fullDateTime, allDay: false };
-            events.push(newEvent);
-            localStorage.setItem('alarms', JSON.stringify(events));
-            calendar.addEvent(newEvent);
-            closeModal();
-            document.getElementById('eventTitle').value = "";
-        }
-    }
-
     function syncToShortcuts() {
         const now = new Date();
-        const endOfWeek = new Date();
-        endOfWeek.setDate(now.getDate() + 7);
-
-        const thisWeekTasks = events.filter(ev => {
-            const taskDate = new Date(ev.start);
-            return taskDate >= now && taskDate <= endOfWeek;
+        const nextWeek = new Date();
+        nextWeek.setDate(now.getDate() + 7);
+        const thisWeek = events.filter(e => {
+            const d = new Date(e.start);
+            return d >= now && d <= nextWeek;
         });
 
-        if (thisWeekTasks.length === 0) {
-            alert("本週沒有任務需要同步！");
-            return;
-        }
+        if (thisWeek.length === 0) { alert("本週沒行程！"); return; }
 
-        const taskData = thisWeekTasks.map(t => {
-            const d = new Date(t.start);
-            const timeStr = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const dayName = days[d.getDay()]; // 系統自動計算星期幾
-            return `${t.title}|${timeStr}|${dayName}`;
+        const data = thisWeek.map(e => {
+            const d = new Date(e.start);
+            const t = d.getHours().toString().padStart(2,'0') + ":" + d.getMinutes().toString().padStart(2,'0');
+            const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            return `${e.title}|${t}|${days[d.getDay()]}`;
         }).join(';');
 
-        window.location.href = "shortcuts://run-shortcut?name=SyncAlarms&input=text&text=" + encodeURIComponent(taskData);
+        window.location.href = "shortcuts://run-shortcut?name=SyncAlarms&input=text&text=" + encodeURIComponent(data);
     }
-</script>
 
+    window.onload = initCalendar;
+</script>
 </body>
 </html>
