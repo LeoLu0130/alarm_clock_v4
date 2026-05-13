@@ -3,32 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 鬧鐘同步系統 V5.5</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>AI 鬧鐘 App V5.6.1</title>
+    
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1827/1827379.png">
+    
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    
     <style>
         :root { --apple-blue: #007aff; --apple-orange: #ff9500; --apple-red: #ff3b30; --apple-green: #34c759; --bg: #f2f2f7; }
-        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background: var(--bg); }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        #calendar { background: #fff; padding: 10px; border-radius: 15px; border: 1px solid #e5e5ea; margin-bottom: 15px; }
-        .btn { border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 16px; width: 100%; margin-top: 10px; }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background: var(--bg); -webkit-user-select: none; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        #calendar { background: #fff; padding: 5px; border-radius: 15px; border: 1px solid #e5e5ea; margin-bottom: 15px; font-size: 14px; }
+        .btn { border: none; padding: 16px; border-radius: 14px; cursor: pointer; font-weight: 600; font-size: 16px; width: 100%; margin-top: 10px; display: block; text-align: center; text-decoration: none; }
         .btn-sync { background: var(--apple-orange); color: white; }
         .btn-list { background: var(--apple-blue); color: white; }
         .btn-save { background: var(--apple-green); color: white; }
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); z-index: 1000; backdrop-filter: blur(5px); }
         .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 25px; z-index: 1001; width: 85%; max-width: 320px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #efeff4; border-radius: 10px; box-sizing: border-box; background: #f2f2f7; font-size: 16px; }
+        input { width: 100%; padding: 14px; margin: 10px 0; border: 1px solid #efeff4; border-radius: 12px; box-sizing: border-box; background: #f2f2f7; font-size: 16px; }
         .todo-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #efeff4; }
-        .btn-del { background: var(--apple-red); color: white; padding: 8px 15px; border-radius: 10px; width: auto; margin: 0; }
+        .btn-del { background: var(--apple-red); color: white; padding: 8px 15px; border-radius: 10px; width: auto; margin: 0; font-size: 14px; }
+        .footer-text { font-size: 11px; color: #8e8e93; text-align: center; margin-top: 10px; line-height: 1.5; }
     </style>
 </head>
 <body>
 
 <div class="container" id="mainPage">
-    <h2 style="margin:0 0 15px 0;">📅 AI 鬧鐘 V5.5</h2>
+    <h2 style="margin:0 0 15px 0;">📅 AI 鬧鐘 <small style="font-size:12px; color:#8e8e93;">離線版</small></h2>
     <div id="calendar"></div>
     <button class="btn btn-sync" onclick="syncToShortcuts()">🚀 同步本週鬧鐘</button>
-    <button class="btn btn-list" onclick="showListPage()">📋 管理行程清單</button>
+    <button class="btn btn-list" onclick="showListPage()">📋 管理清單</button>
+    <div class="footer-text">提示：同步前建議先刪除舊的 [AI] 鬧鐘<br>僅同步今日至本週日之行程</div>
 </div>
 
 <div class="container" id="listPage" style="display:none;">
@@ -38,10 +46,10 @@
 
 <div class="modal-overlay" id="overlay" onclick="closeModal()"></div>
 <div class="modal" id="modal">
-    <h3 id="mDate" style="color:var(--apple-blue);">新增行程</h3>
-    <input type="text" id="mTitle" placeholder="名稱">
-    <input type="time" id="mTime" value="09:00">
-    <button class="btn btn-save" onclick="saveEvent()">確認儲存</button>
+    <h3 id="mDate" style="color:var(--apple-blue); margin-top:0;">新增行程</h3>
+    <input type="text" id="mTitle" placeholder="行程名稱">
+    <input type="time" id="mTime" value="08:00">
+    <button class="btn btn-save" onclick="saveEvent()">儲存</button>
 </div>
 
 <script>
@@ -65,13 +73,14 @@
     function saveEvent() {
         const title = document.getElementById('mTitle').value || "提醒";
         const time = document.getElementById('mTime').value;
-        events.push({ id: Date.now().toString(), title: title.trim(), start: selDate + "T" + time });
+        // 統一前綴方便搜尋
+        events.push({ id: Date.now().toString(), title: "[AI] " + title.trim(), start: selDate + "T" + time });
         localStorage.setItem('alarms', JSON.stringify(events));
         location.reload();
     }
 
     function deleteEv(id) {
-        if(confirm("確定刪除？")) {
+        if(confirm("刪除此行程？")) {
             events = events.filter(e => e.id !== id);
             localStorage.setItem('alarms', JSON.stringify(events));
             location.reload();
@@ -81,51 +90,35 @@
     function showListPage() {
         document.getElementById('mainPage').style.display = 'none';
         document.getElementById('listPage').style.display = 'block';
-        document.getElementById('fullTodoList').innerHTML = events.map(ev => `
+        document.getElementById('fullTodoList').innerHTML = events.sort((a,b)=>new Date(a.start)-new Date(b.start)).map(ev => `
             <div class="todo-item">
-                <div><strong>${ev.title}</strong><br><small>${ev.start}</small></div>
+                <div><strong>${ev.title}</strong><br><small>${ev.start.replace('T',' ')}</small></div>
                 <button class="btn btn-del" onclick="deleteEv('${ev.id}')">刪除</button>
             </div>`).join('');
     }
 
     function closeModal() { document.getElementById('modal').style.display = 'none'; document.getElementById('overlay').style.display = 'none'; }
 
-    // 判斷是否為本週的關鍵函數
     function isThisWeek(targetDate) {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        // 取得本週日的結束時間 (本週最後一秒)
-        // 註：getDay() 0 是週日, 1 是週一...
-        const dayOfWeek = today.getDay();
-        const diffToSunday = 6 - (dayOfWeek === 0 ? 6 : dayOfWeek - 1); // 這是算到週六的邏輯，如果你的週日是最後一天：
-        
-        // 台灣習慣週一為一週開始，這裡設定抓到「本週日 23:59:59」
+        const dayOfWeek = now.getDay(); 
         const endOfWeek = new Date(today);
-        endOfWeek.setDate(today.getDate() + (dayOfWeek === 0 ? 0 : 7 - dayOfWeek));
+        const diff = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+        endOfWeek.setDate(today.getDate() + diff);
         endOfWeek.setHours(23, 59, 59, 999);
-
         const target = new Date(targetDate);
-        // 必須是大於等於今天，且小於等於本週日
         return target >= today && target <= endOfWeek;
     }
 
     function syncToShortcuts() {
-        const data = events.filter(e => isThisWeek(e.start)).map(e => {
+        const futureTasks = events.filter(e => isThisWeek(e.start));
+        if (futureTasks.length === 0) { alert("本週無行程"); return; }
+        const data = futureTasks.map(e => {
             const d = new Date(e.start);
             const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-            return {
-                name: e.title,
-                time: d.getHours().toString().padStart(2,'0') + ":" + d.getMinutes().toString().padStart(2,'0'),
-                day: days[d.getDay()]
-            };
+            return { name: e.title, time: d.getHours().toString().padStart(2,'0') + ":" + d.getMinutes().toString().padStart(2,'0'), day: days[d.getDay()] };
         });
-
-        if(data.length === 0) { 
-            alert("本週沒有待辦行程需要同步！"); 
-            return; 
-        }
-        
         window.location.href = "shortcuts://run-shortcut?name=SyncAlarms&input=text&text=" + encodeURIComponent(JSON.stringify(data));
     }
 
