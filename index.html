@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>AI 鬧鐘 App V5.6.1</title>
+    <meta name="apple-mobile-web-app-title" content="AI鬧鐘">
+    <title>AI 鬧鐘 V5.7 離線版</title>
     
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1827/1827379.png">
     
@@ -14,32 +15,45 @@
     
     <style>
         :root { --apple-blue: #007aff; --apple-orange: #ff9500; --apple-red: #ff3b30; --apple-green: #34c759; --bg: #f2f2f7; }
-        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background: var(--bg); -webkit-user-select: none; }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; background: var(--bg); -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
         .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
-        #calendar { background: #fff; padding: 5px; border-radius: 15px; border: 1px solid #e5e5ea; margin-bottom: 15px; font-size: 14px; }
-        .btn { border: none; padding: 16px; border-radius: 14px; cursor: pointer; font-weight: 600; font-size: 16px; width: 100%; margin-top: 10px; display: block; text-align: center; text-decoration: none; }
+        
+        /* 離線時日曆載入失敗的預備樣式 */
+        #calendar { background: #fff; min-height: 300px; border-radius: 15px; border: 1px solid #e5e5ea; margin-bottom: 15px; overflow: hidden; }
+        .offline-notice { display: none; padding: 50px 20px; text-align: center; color: #8e8e93; }
+
+        .btn { border: none; padding: 16px; border-radius: 14px; cursor: pointer; font-weight: 600; font-size: 16px; width: 100%; margin-top: 10px; display: block; text-align: center; text-decoration: none; box-sizing: border-box; }
         .btn-sync { background: var(--apple-orange); color: white; }
         .btn-list { background: var(--apple-blue); color: white; }
         .btn-save { background: var(--apple-green); color: white; }
+        
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); z-index: 1000; backdrop-filter: blur(5px); }
         .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 25px; border-radius: 25px; z-index: 1001; width: 85%; max-width: 320px; }
+        
         input { width: 100%; padding: 14px; margin: 10px 0; border: 1px solid #efeff4; border-radius: 12px; box-sizing: border-box; background: #f2f2f7; font-size: 16px; }
         .todo-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #efeff4; }
         .btn-del { background: var(--apple-red); color: white; padding: 8px 15px; border-radius: 10px; width: auto; margin: 0; font-size: 14px; }
-        .footer-text { font-size: 11px; color: #8e8e93; text-align: center; margin-top: 10px; line-height: 1.5; }
+        .footer-text { font-size: 11px; color: #8e8e93; text-align: center; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container" id="mainPage">
-    <h2 style="margin:0 0 15px 0;">📅 AI 鬧鐘 <small style="font-size:12px; color:#8e8e93;">離線版</small></h2>
-    <div id="calendar"></div>
+<div id="mainPage" class="container">
+    <h2 style="margin:0 0 15px 0;">📅 AI 鬧鐘 <span id="statusIcon" style="font-size:12px; color:var(--apple-green);">● 在線</span></h2>
+    
+    <div id="calendar">
+        <div id="offlineContent" class="offline-notice">
+            <p>📴 離線模式</p>
+            <p style="font-size:13px;">日曆組件需要網路載入，但您仍可透過下方「管理清單」查看與刪除已存行程。</p>
+        </div>
+    </div>
+    
     <button class="btn btn-sync" onclick="syncToShortcuts()">🚀 同步本週鬧鐘</button>
-    <button class="btn btn-list" onclick="showListPage()">📋 管理清單</button>
-    <div class="footer-text">提示：同步前建議先刪除舊的 [AI] 鬧鐘<br>僅同步今日至本週日之行程</div>
+    <button class="btn btn-list" onclick="showListPage()">📋 管理清單 / 離線查看</button>
+    <div class="footer-text">僅同步今日至本週日之行程</div>
 </div>
 
-<div class="container" id="listPage" style="display:none;">
+<div id="listPage" class="container" style="display:none;">
     <button class="btn" style="background:#e5e5ea; color:#333; width: auto;" onclick="location.reload()">← 返回</button>
     <div id="fullTodoList" style="margin-top:10px;"></div>
 </div>
@@ -54,26 +68,44 @@
 
 <script>
     let events = JSON.parse(localStorage.getItem('alarms') || '[]');
-    let selDate = "";
+    let selDate = new Date().toISOString().split('T')[0];
+
+    // 檢查網路狀態
+    function updateOnlineStatus() {
+        const icon = document.getElementById('statusIcon');
+        if (navigator.onLine) {
+            icon.innerText = "● 在線";
+            icon.style.color = "var(--apple-green)";
+        } else {
+            icon.innerText = "● 離線";
+            icon.style.color = "var(--apple-red)";
+            document.getElementById('offlineContent').style.display = 'block';
+        }
+    }
 
     function initCalendar() {
-        const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-            initialView: 'dayGridMonth', locale: 'zh-tw', height: 'auto',
-            dateClick: function(info) {
-                selDate = info.dateStr;
-                document.getElementById('mDate').innerText = selDate;
-                document.getElementById('modal').style.display = 'block';
-                document.getElementById('overlay').style.display = 'block';
-            }
-        });
-        calendar.addEventSource(events);
-        calendar.render();
+        if (typeof FullCalendar !== 'undefined') {
+            const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+                initialView: 'dayGridMonth',
+                locale: 'zh-tw',
+                height: 'auto',
+                dateClick: function(info) {
+                    selDate = info.dateStr;
+                    document.getElementById('mDate').innerText = selDate;
+                    document.getElementById('modal').style.display = 'block';
+                    document.getElementById('overlay').style.display = 'block';
+                }
+            });
+            calendar.addEventSource(events);
+            calendar.render();
+        } else {
+            document.getElementById('offlineContent').style.display = 'block';
+        }
     }
 
     function saveEvent() {
         const title = document.getElementById('mTitle').value || "提醒";
         const time = document.getElementById('mTime').value;
-        // 統一前綴方便搜尋
         events.push({ id: Date.now().toString(), title: "[AI] " + title.trim(), start: selDate + "T" + time });
         localStorage.setItem('alarms', JSON.stringify(events));
         location.reload();
@@ -83,18 +115,24 @@
         if(confirm("刪除此行程？")) {
             events = events.filter(e => e.id !== id);
             localStorage.setItem('alarms', JSON.stringify(events));
-            location.reload();
+            renderList();
         }
+    }
+
+    function renderList() {
+        const listEl = document.getElementById('fullTodoList');
+        if (events.length === 0) { listEl.innerHTML = "<p style='text-align:center;'>無行程</p>"; return; }
+        listEl.innerHTML = events.sort((a,b)=>new Date(a.start)-new Date(b.start)).map(ev => `
+            <div class="todo-item">
+                <div><strong>${ev.title}</strong><br><small>${ev.start.replace('T',' ')}</small></div>
+                <button class="btn btn-del" onclick="deleteEv('${ev.id}')">刪除</button>
+            </div>`).join('');
     }
 
     function showListPage() {
         document.getElementById('mainPage').style.display = 'none';
         document.getElementById('listPage').style.display = 'block';
-        document.getElementById('fullTodoList').innerHTML = events.sort((a,b)=>new Date(a.start)-new Date(b.start)).map(ev => `
-            <div class="todo-item">
-                <div><strong>${ev.title}</strong><br><small>${ev.start.replace('T',' ')}</small></div>
-                <button class="btn btn-del" onclick="deleteEv('${ev.id}')">刪除</button>
-            </div>`).join('');
+        renderList();
     }
 
     function closeModal() { document.getElementById('modal').style.display = 'none'; document.getElementById('overlay').style.display = 'none'; }
@@ -122,7 +160,12 @@
         window.location.href = "shortcuts://run-shortcut?name=SyncAlarms&input=text&text=" + encodeURIComponent(JSON.stringify(data));
     }
 
-    window.onload = initCalendar;
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    window.onload = () => {
+        updateOnlineStatus();
+        initCalendar();
+    };
 </script>
 </body>
 </html>
